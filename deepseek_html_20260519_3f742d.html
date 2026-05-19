@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Convenios - FormatoEdu</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+        }
+        body {
+            background-color: #1C3B8B;
+            padding: 20px;
+        }
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .header {
+            background: white;
+            border-radius: 20px;
+            padding: 15px 25px;
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            border-left: 6px solid #F72B20;
+        }
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .logo-area img {
+            height: 45px;
+            width: auto;
+        }
+        .title-section h1 {
+            color: #1C3B8B;
+            font-size: 1.4rem;
+        }
+        .title-section p {
+            color: #555;
+            font-size: 0.8rem;
+        }
+        .badge {
+            background-color: #F72B20;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 30px;
+            font-size: 0.75rem;
+        }
+        .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        .kpi-card {
+            background: white;
+            border-radius: 16px;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            border-top: 4px solid #F72B20;
+        }
+        .kpi-title {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            color: #666;
+        }
+        .kpi-value {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #1C3B8B;
+            margin-top: 5px;
+        }
+        .filters-bar {
+            background: white;
+            border-radius: 16px;
+            padding: 15px 20px;
+            margin-bottom: 25px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: flex-end;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            min-width: 130px;
+        }
+        .filter-group label {
+            font-size: 0.7rem;
+            font-weight: bold;
+            color: #1C3B8B;
+            margin-bottom: 4px;
+        }
+        .filter-group select, .filter-group input {
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+        .reset-btn, .refresh-btn {
+            background-color: #F72B20;
+            border: none;
+            color: white;
+            padding: 6px 16px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .refresh-btn {
+            background-color: #1C3B8B;
+            margin-left: 5px;
+        }
+        .last-update {
+            font-size: 0.7rem;
+            color: #6c757d;
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .charts-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+        .chart-card {
+            background: white;
+            border-radius: 20px;
+            padding: 15px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        .chart-card h3 {
+            color: #1C3B8B;
+            margin-bottom: 12px;
+            font-size: 1rem;
+            border-left: 4px solid #F72B20;
+            padding-left: 10px;
+        }
+        canvas {
+            max-height: 250px;
+            width: 100%;
+        }
+        .table-container {
+            background: white;
+            border-radius: 20px;
+            padding: 15px;
+            overflow-x: auto;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        .table-container h3 {
+            color: #1C3B8B;
+            margin-bottom: 12px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+        th {
+            background-color: #1C3B8B;
+            color: white;
+            padding: 8px;
+            text-align: left;
+        }
+        td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .firmado-yes {
+            background-color: #F72B20;
+            color: white;
+            border-radius: 20px;
+            padding: 2px 10px;
+            display: inline-block;
+            font-size: 0.7rem;
+        }
+        .firmado-no {
+            background-color: #9e9e9e;
+            color: white;
+            border-radius: 20px;
+            padding: 2px 10px;
+            display: inline-block;
+            font-size: 0.7rem;
+        }
+        footer {
+            text-align: center;
+            margin-top: 25px;
+            font-size: 0.7rem;
+            color: white;
+        }
+        .loader {
+            text-align: center;
+            padding: 40px;
+            color: white;
+        }
+        .toast-notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #1C3B8B;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 40px;
+            font-size: 0.75rem;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        @media (max-width: 700px) {
+            .charts-row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+<div class="dashboard-container">
+    <div class="header">
+        <div class="logo-area">
+            <img src="https://www.formatoedu.com/wp-content/uploads/2025/06/LOGO-FORMATOE.png" alt="Logo FormatoEdu">
+            <div class="title-section">
+                <h1><i class="fas fa-handshake" style="color:#F72B20;"></i> Convenios FormatoEdu</h1>
+                <p>Seguimiento de convenios · Actualización automática cada 60s</p>
+            </div>
+        </div>
+        <div class="badge">
+            <i class="fas fa-chart-line"></i> Datos en tiempo real
+        </div>
+    </div>
+
+    <div id="loader" class="loader">Cargando datos...</div>
+    <div id="dashboard-content" style="display: none;">
+        <div class="kpi-row" id="kpi-container"></div>
+
+        <div class="filters-bar">
+            <div class="filter-group"><label>Responsable</label><select id="filter-responsable"><option value="todos">Todos</option></select></div>
+            <div class="filter-group"><label>Estado</label><select id="filter-estado"><option value="todos">Todos</option></select></div>
+            <div class="filter-group"><label>País</label><select id="filter-pais"><option value="todos">Todos</option></select></div>
+            <div class="filter-group"><label>Firmado</label><select id="filter-firmado"><option value="todos">Todos</option><option value="TRUE">Sí</option><option value="FALSE">No</option></select></div>
+            <div class="filter-group"><label>Fecha desde</label><input type="date" id="filter-fecha-desde"></div>
+            <div class="filter-group"><label>Fecha hasta</label><input type="date" id="filter-fecha-hasta"></div>
+            <button class="reset-btn" id="reset-filtros">Limpiar</button>
+            <button class="refresh-btn" id="manual-refresh">Actualizar</button>
+            <div class="last-update"><i class="fas fa-clock"></i> <span id="last-update-time">--:--:--</span></div>
+        </div>
+
+        <div class="charts-row">
+            <div class="chart-card"><h3>Convenios por Responsable</h3><canvas id="barChart"></canvas></div>
+            <div class="chart-card"><h3>Evolución mensual</h3><canvas id="lineChart"></canvas></div>
+        </div>
+
+        <div class="table-container">
+            <h3>Detalle de Convenios</h3>
+            <table id="data-table"><thead><tr><th>Institución</th><th>Responsable</th><th>Estado</th><th>País</th><th>Fecha contacto</th><th>Firmado</th></tr></thead><tbody id="table-body"></tbody></table>
+        </div>
+    </div>
+    <footer>Actualización automática cada 60 segundos. Datos desde Google Sheets.</footer>
+</div>
+<div id="toast" class="toast-notification">Datos actualizados ✅</div>
+
+<script>
+    // ============================================================
+    // URL del CSV (pública). Esta es la que has estado usando.
+    // ============================================================
+    const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS6LKk58LcwW-7ngLXhZXvgKy9bZ9qQ3EClR_xMZTORwH4PsLMvetvPOQTHc3ck7w/pub?output=csv";
+
+    // Variables globales
+    let rawData = [];
+    let filteredData = [];
+    let updateInterval = null;
+    let isLoading = false;
+    let barChart, lineChart;
+
+    // Elementos DOM
+    const loaderDiv = document.getElementById('loader');
+    const dashboardDiv = document.getElementById('dashboard-content');
+    const filterResponsable = document.getElementById('filter-responsable');
+    const filterEstado = document.getElementById('filter-estado');
+    const filterPais = document.getElementById('filter-pais');
+    const filterFirmado = document.getElementById('filter-firmado');
+    const filterFechaDesde = document.getElementById('filter-fecha-desde');
+    const filterFechaHasta = document.getElementById('filter-fecha-hasta');
+    const resetBtn = document.getElementById('reset-filtros');
+    const refreshBtn = document.getElementById('manual-refresh');
+    const lastUpdateSpan = document.getElementById('last-update-time');
+    const toast = document.getElementById('toast');
+
+    // Limpieza de caracteres mal codificados (combate a Ã¡, â€“, etc.)
+    function cleanText(text) {
+        if (!text) return '';
+        let s = String(text);
+        // Reemplazar secuencias comunes de UTF-8 malinterpretado
+        s = s.replace(/Ã¡/g, 'á').replace(/Ã©/g, 'é').replace(/Ã­/g, 'í').replace(/Ã³/g, 'ó').replace(/Ãº/g, 'ú');
+        s = s.replace(/Ã±/g, 'ñ').replace(/Ã‘/g, 'Ñ');
+        s = s.replace(/Ã¼/g, 'ü').replace(/Ãœ/g, 'Ü');
+        s = s.replace(/â€œ/g, '"').replace(/â€/g, '');
+        s = s.replace(/â€“/g, '—').replace(/â€”/g, '—');
+        s = s.replace(/â€™/g, "'").replace(/Â/g, '');
+        s = s.replace(/[\u0080-\u00BF]/g, ''); // eliminar restos no deseados
+        return s.trim();
+    }
+
+    // Parseo de fechas (DD/MM/YYYY)
+    function parseDate(dateStr) {
+        if (!dateStr) return null;
+        let cleaned = cleanText(dateStr);
+        if (cleaned === '' || cleaned === '—' || cleaned.toLowerCase().includes('por contactar')) return null;
+        let parts = cleaned.split('/');
+        if (parts.length === 3) {
+            let day = parseInt(parts[0], 10);
+            let month = parseInt(parts[1], 10) - 1;
+            let year = parseInt(parts[2], 10);
+            if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+                return new Date(year, month, day);
+            }
+        }
+        return null;
+    }
+
+    async function loadData(showLoading = false) {
+        if (isLoading) return;
+        isLoading = true;
+        if (showLoading) {
+            loaderDiv.style.display = 'block';
+            dashboardDiv.style.display = 'none';
+            loaderDiv.innerHTML = 'Cargando datos...';
+        }
+        try {
+            // Forzar recarga sin caché
+            const response = await fetch(CSV_URL + '&nocache=' + Date.now());
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const csvText = await response.text();
+            // Eliminar BOM si existe
+            let cleanCsv = csvText.charCodeAt(0) === 0xFEFF ? csvText.slice(1) : csvText;
+            Papa.parse(cleanCsv, {
+                header: true,
+                skipEmptyLines: true,
+                complete: (results) => {
+                    const rows = results.data;
+                    if (!rows || rows.length === 0) throw new Error("No hay datos");
+                    rawData = [];
+                    for (let row of rows) {
+                        // Normalizar nombres de columnas (intentar varias variantes)
+                        const institucion = cleanText(row['INSTITUCIÓN'] || row['Institución'] || row['INSTITUCION'] || '');
+                        const responsable = cleanText(row['Responsable'] || row['responsable'] || '');
+                        const pais = cleanText(row['PAÍS'] || row['País'] || row['pais'] || '');
+                        const fechaRaw = cleanText(row['Fecha ultimo contacto'] || row['Fecha de último contacto'] || '');
+                        const estado = cleanText(row['Estado'] || row['estado'] || '');
+                        let firmadoRaw = row['Firmado'] || row['firmado'] || '';
+                        let firmado = (firmadoRaw === 'TRUE' || firmadoRaw === 'true' || firmadoRaw === 'Sí' || firmadoRaw === 'SI' || firmadoRaw === '1') ? 'TRUE' : 'FALSE';
+                        const fecha = parseDate(fechaRaw);
+                        rawData.push({ institucion, responsable, pais, fechaStr: fechaRaw, fecha, estado, firmado });
+                    }
+                    rawData = rawData.filter(item => item.institucion || item.responsable);
+                    console.log("Datos cargados:", rawData.length);
+                    populateFilters();
+                    applyFilters();
+                    lastUpdateSpan.innerText = new Date().toLocaleTimeString();
+                    if (showLoading) {
+                        loaderDiv.style.display = 'none';
+                        dashboardDiv.style.display = 'block';
+                    }
+                    showToast("Datos actualizados");
+                    isLoading = false;
+                },
+                error: (err) => {
+                    console.error(err);
+                    if (showLoading) loaderDiv.innerHTML = 'Error al leer CSV: ' + err.message;
+                    isLoading = false;
+                }
+            });
+        } catch (err) {
+            console.error(err);
+            if (showLoading) loaderDiv.innerHTML = 'Error de red: ' + err.message;
+            isLoading = false;
+        }
+    }
+
+    function populateFilters() {
+        const responsables = new Set(), estados = new Set(), paises = new Set();
+        rawData.forEach(item => {
+            if (item.responsable && item.responsable !== '') responsables.add(item.responsable);
+            if (item.estado && item.estado !== '') estados.add(item.estado);
+            if (item.pais && item.pais !== '') paises.add(item.pais);
+        });
+        filterResponsable.innerHTML = '<option value="todos">Todos</option>' + Array.from(responsables).sort().map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('');
+        filterEstado.innerHTML = '<option value="todos">Todos</option>' + Array.from(estados).sort().map(e => `<option value="${escapeHtml(e)}">${escapeHtml(e)}</option>`).join('');
+        filterPais.innerHTML = '<option value="todos">Todos</option>' + Array.from(paises).sort().map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;');
+    }
+
+    function applyFilters() {
+        const resp = filterResponsable.value;
+        const estado = filterEstado.value;
+        const pais = filterPais.value;
+        const firmado = filterFirmado.value;
+        const desde = filterFechaDesde.value ? new Date(filterFechaDesde.value) : null;
+        const hasta = filterFechaHasta.value ? new Date(filterFechaHasta.value) : null;
+
+        filteredData = rawData.filter(item => {
+            if (resp !== 'todos' && item.responsable !== resp) return false;
+            if (estado !== 'todos' && item.estado !== estado) return false;
+            if (pais !== 'todos' && item.pais !== pais) return false;
+            if (firmado !== 'todos' && item.firmado !== firmado) return false;
+            if (desde && item.fecha && item.fecha < desde) return false;
+            if (hasta && item.fecha && item.fecha > hasta) return false;
+            return true;
+        });
+        updateKPIs();
+        updateCharts();
+        updateTable();
+    }
+
+    function updateKPIs() {
+        const total = filteredData.length;
+        const firmados = filteredData.filter(d => d.firmado === 'TRUE').length;
+        const tasa = total === 0 ? 0 : ((firmados / total) * 100).toFixed(1);
+        const paisesUnicos = new Set(filteredData.map(d => d.pais).filter(p => p && p !== '')).size;
+        document.getElementById('kpi-container').innerHTML = `
+            <div class="kpi-card"><div class="kpi-title">Total Convenios</div><div class="kpi-value">${total}</div></div>
+            <div class="kpi-card"><div class="kpi-title">Firmados</div><div class="kpi-value">${firmados}</div></div>
+            <div class="kpi-card"><div class="kpi-title">Tasa de firma</div><div class="kpi-value">${tasa}%</div></div>
+            <div class="kpi-card"><div class="kpi-title">Países involucrados</div><div class="kpi-value">${paisesUnicos}</div></div>
+        `;
+    }
+
+    function updateCharts() {
+        const respCount = {};
+        filteredData.forEach(item => {
+            const r = item.responsable || 'No asignado';
+            respCount[r] = (respCount[r] || 0) + 1;
+        });
+        const labels = Object.keys(respCount).sort();
+        const data = labels.map(l => respCount[l]);
+        if (barChart) barChart.destroy();
+        barChart = new Chart(document.getElementById('barChart'), {
+            type: 'bar',
+            data: { labels, datasets: [{ label: 'N° Convenios', data, backgroundColor: '#F72B20', borderRadius: 6 }] }
+        });
+        const monthly = {};
+        filteredData.forEach(item => {
+            if (item.fecha && !isNaN(item.fecha)) {
+                const ym = item.fecha.toISOString().slice(0, 7);
+                monthly[ym] = (monthly[ym] || 0) + 1;
+            }
+        });
+        const months = Object.keys(monthly).sort();
+        const lineData = months.map(m => monthly[m]);
+        if (lineChart) lineChart.destroy();
+        lineChart = new Chart(document.getElementById('lineChart'), {
+            type: 'line',
+            data: { labels: months, datasets: [{ label: 'Convenios por mes', data: lineData, borderColor: '#1C3B8B', backgroundColor: 'rgba(28,59,139,0.1)', fill: true, tension: 0.3 }] }
+        });
+    }
+
+    function updateTable() {
+        const tbody = document.getElementById('table-body');
+        tbody.innerHTML = '';
+        if (filteredData.length === 0) {
+            const row = tbody.insertRow();
+            row.insertCell(0).colSpan = 6;
+            row.insertCell(0).textContent = 'No hay datos con los filtros seleccionados.';
+            row.cells[0].style.textAlign = 'center';
+            return;
+        }
+        filteredData.slice(0, 200).forEach(item => {
+            const row = tbody.insertRow();
+            row.insertCell(0).innerText = item.institucion || '—';
+            row.insertCell(1).innerText = item.responsable || '—';
+            row.insertCell(2).innerText = item.estado || '—';
+            row.insertCell(3).innerText = item.pais || '—';
+            const fechaStr = item.fecha ? item.fecha.toLocaleDateString() : (item.fechaStr || '—');
+            row.insertCell(4).innerText = fechaStr;
+            row.insertCell(5).innerHTML = item.firmado === 'TRUE' ? '<span class="firmado-yes">Firmado</span>' : '<span class="firmado-no">Pendiente</span>';
+        });
+    }
+
+    function startAutoRefresh(seconds = 60) {
+        if (updateInterval) clearInterval(updateInterval);
+        updateInterval = setInterval(() => loadData(false), seconds * 1000);
+    }
+
+    function showToast(msg) {
+        toast.textContent = msg;
+        toast.style.opacity = '1';
+        setTimeout(() => toast.style.opacity = '0', 2500);
+    }
+
+    // Eventos
+    filterResponsable.addEventListener('change', applyFilters);
+    filterEstado.addEventListener('change', applyFilters);
+    filterPais.addEventListener('change', applyFilters);
+    filterFirmado.addEventListener('change', applyFilters);
+    filterFechaDesde.addEventListener('change', applyFilters);
+    filterFechaHasta.addEventListener('change', applyFilters);
+    resetBtn.addEventListener('click', () => {
+        filterResponsable.value = 'todos';
+        filterEstado.value = 'todos';
+        filterPais.value = 'todos';
+        filterFirmado.value = 'todos';
+        filterFechaDesde.value = '';
+        filterFechaHasta.value = '';
+        applyFilters();
+    });
+    refreshBtn.addEventListener('click', () => loadData(true));
+
+    loadData(true).then(() => startAutoRefresh(60));
+</script>
+</body>
+</html>
