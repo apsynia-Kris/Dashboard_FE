@@ -8,7 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        /* ===== ESTILOS CORPORATIVOS ===== */
+        /* === ESTILOS (se mantienen igual, solo añado un poco más de espacio para el nuevo filtro) === */
         * {
             margin: 0;
             padding: 0;
@@ -102,7 +102,7 @@
         .filter-group {
             display: flex;
             flex-direction: column;
-            min-width: 150px;
+            min-width: 140px;
         }
         .filter-group label {
             font-size: 0.75rem;
@@ -189,6 +189,13 @@
             color: white;
             padding: 10px;
             text-align: left;
+            cursor: pointer;
+            user-select: none;
+        }
+        th i {
+            margin-left: 8px;
+            font-size: 0.7rem;
+            opacity: 0.7;
         }
         td {
             padding: 8px;
@@ -244,6 +251,9 @@
             body {
                 padding: 16px;
             }
+            .filter-group {
+                min-width: 120px;
+            }
         }
     </style>
 </head>
@@ -268,7 +278,7 @@
         <!-- KPIs -->
         <div class="kpi-row" id="kpi-container"></div>
 
-        <!-- Filtros -->
+        <!-- Filtros (incluyendo el nuevo rango de población) -->
         <div class="filters-bar">
             <div class="filter-group">
                 <label><i class="fas fa-user"></i> Responsable</label>
@@ -294,6 +304,19 @@
                 <label><i class="fas fa-calendar-alt"></i> Fecha hasta</label>
                 <input type="date" id="filter-fecha-hasta">
             </div>
+            <!-- NUEVO FILTRO: Rango de población objetivo -->
+            <div class="filter-group">
+                <label><i class="fas fa-chart-line"></i> Población objetivo</label>
+                <select id="filter-poblacion">
+                    <option value="todos">Todos</option>
+                    <option value="0-100">0 - 100</option>
+                    <option value="100-500">100 - 500</option>
+                    <option value="500-1000">500 - 1000</option>
+                    <option value="1000-5000">1000 - 5000</option>
+                    <option value=">5000">Más de 5000</option>
+                    <option value="no-definido">No definido / alcance</option>
+                </select>
+            </div>
             <button class="reset-btn" id="reset-filtros"><i class="fas fa-undo-alt"></i> Limpiar</button>
             <button class="refresh-btn" id="manual-refresh"><i class="fas fa-sync-alt"></i> Actualizar ahora</button>
             <div class="last-update">
@@ -313,13 +336,21 @@
             </div>
         </div>
 
-        <!-- Tabla detallada -->
+        <!-- Tabla detallada (ahora con ordenamiento) -->
         <div class="table-container">
             <h3><i class="fas fa-table"></i> Detalle de Convenios</h3>
             <div style="overflow-x: auto;">
                 <table id="data-table">
                     <thead>
-                        <tr><th>Institución</th><th>Responsable</th><th>Estado</th><th>País</th><th>Fecha contacto</th><th>Firmado</th><th>Población objetivo</th></tr>
+                        <tr>
+                            <th>Institución</th>
+                            <th>Responsable</th>
+                            <th>Estado</th>
+                            <th>País</th>
+                            <th>Fecha contacto</th>
+                            <th>Firmado</th>
+                            <th id="sort-poblacion" style="cursor: pointer;">Población objetivo <i class="fas fa-sort"></i></th>
+                        </tr>
                     </thead>
                     <tbody id="table-body"></tbody>
                 </table>
@@ -338,6 +369,7 @@
 
     let rawData = [], filteredData = [], updateInterval = null, isLoading = false;
     let barChart, lineChart;
+    let sortDirection = 'desc'; // 'asc' o 'desc' para la columna población (por defecto descendente)
 
     // Elementos DOM
     const loaderDiv = document.getElementById('loader');
@@ -348,10 +380,12 @@
     const filterFirmado = document.getElementById('filter-firmado');
     const filterFechaDesde = document.getElementById('filter-fecha-desde');
     const filterFechaHasta = document.getElementById('filter-fecha-hasta');
+    const filterPoblacion = document.getElementById('filter-poblacion');
     const resetBtn = document.getElementById('reset-filtros');
     const refreshBtn = document.getElementById('manual-refresh');
     const lastUpdateSpan = document.getElementById('last-update-time');
     const toast = document.getElementById('toast');
+    const sortHeader = document.getElementById('sort-poblacion');
 
     // ========== FUNCIONES AUXILIARES ==========
     function showToast(msg) {
@@ -364,7 +398,6 @@
         return (t || "").trim();
     }
 
-    // Parseo de fechas en formato DD/MM/YYYY
     function parseFecha(str) {
         if (!str) return null;
         let s = cleanText(str);
@@ -380,26 +413,33 @@
         return isNaN(d.getTime()) ? null : d;
     }
 
-    // Parseo robusto de números (incluye notación científica, puntos de miles, comas decimales)
     function parsePoblacion(val) {
         if (val === undefined || val === null || val === '') return null;
         let str = String(val).trim();
-        // Si ya es solo dígitos
         if (/^\d+$/.test(str)) {
             return parseInt(str, 10);
         }
-        // Notación científica: 6E5 -> 600000
         if (/^[\d\.]+E[\+\-]?\d+$/i.test(str)) {
             let num = parseFloat(str);
             return isNaN(num) ? null : Math.round(num);
         }
-        // Eliminar puntos de miles y reemplazar coma decimal por punto
         let cleanStr = str.replace(/\./g, '').replace(/,/g, '.');
         if (/^\d+$/.test(cleanStr)) {
             return parseInt(cleanStr, 10);
         }
         let num = parseFloat(cleanStr);
         return isNaN(num) ? null : num;
+    }
+
+    // Función para determinar el rango de población (para el filtro)
+    function getPoblacionRango(pobNum) {
+        if (pobNum === null || pobNum === undefined) return 'no-definido';
+        if (pobNum >= 0 && pobNum <= 100) return '0-100';
+        if (pobNum > 100 && pobNum <= 500) return '100-500';
+        if (pobNum > 500 && pobNum <= 1000) return '500-1000';
+        if (pobNum > 1000 && pobNum <= 5000) return '1000-5000';
+        if (pobNum > 5000) return '>5000';
+        return 'no-definido';
     }
 
     // ========== CARGA DE DATOS DESDE CSV ==========
@@ -422,7 +462,6 @@
                     const colNames = results.meta.fields;
                     console.log("📌 Columnas detectadas:", colNames);
                     
-                    // Buscar columna de población (flexible)
                     let poblacionColumn = null;
                     for (let name of colNames) {
                         let lower = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -476,7 +515,7 @@
         }
     }
 
-    // ========== FILTROS Y VISUALIZACIÓN ==========
+    // ========== FILTROS ==========
     function populateFilters() {
         const responsables = new Set(), estados = new Set(), paises = new Set();
         rawData.forEach(item => {
@@ -500,6 +539,7 @@
         const firmado = filterFirmado.value;
         const desde = filterFechaDesde.value ? new Date(filterFechaDesde.value) : null;
         const hasta = filterFechaHasta.value ? new Date(filterFechaHasta.value) : null;
+        const rangoPob = filterPoblacion.value;
 
         filteredData = rawData.filter(item => {
             if (resp !== 'todos' && item.responsable !== resp) return false;
@@ -508,13 +548,42 @@
             if (firmado !== 'todos' && item.firmado !== firmado) return false;
             if (desde && item.fecha && item.fecha < desde) return false;
             if (hasta && item.fecha && item.fecha > hasta) return false;
+            // Filtro por rango de población
+            if (rangoPob !== 'todos') {
+                const itemRango = getPoblacionRango(item.poblacion);
+                if (itemRango !== rangoPob) return false;
+            }
             return true;
         });
+        
+        // Aplicar ordenamiento actual después de filtrar
+        sortTableData();
         updateKPIs();
         updateCharts();
-        updateTable();
+        renderTable();
     }
 
+    // ========== ORDENAMIENTO DE LA TABLA (por población) ==========
+    function sortTableData() {
+        filteredData.sort((a, b) => {
+            const poblA = (a.poblacion !== null && !isNaN(a.poblacion)) ? a.poblacion : -1;
+            const poblB = (b.poblacion !== null && !isNaN(b.poblacion)) ? b.poblacion : -1;
+            if (sortDirection === 'asc') {
+                return poblA - poblB;
+            } else {
+                return poblB - poblA;
+            }
+        });
+    }
+
+    function toggleSortDirection() {
+        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+        const icon = sortHeader.querySelector('i');
+        icon.className = sortDirection === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down';
+        applyFilters(); // re-aplica filtros y reordena
+    }
+
+    // ========== KPIs, GRÁFICOS Y TABLA ==========
     function updateKPIs() {
         const total = filteredData.length;
         const firmados = filteredData.filter(d => d.firmado === 'TRUE').length;
@@ -538,7 +607,6 @@
     }
 
     function updateCharts() {
-        // Gráfico de barras
         const respCount = {};
         filteredData.forEach(item => {
             const r = item.responsable || 'No asignado';
@@ -553,7 +621,6 @@
             options: { responsive: true, maintainAspectRatio: true }
         });
 
-        // Gráfico de líneas
         const monthly = {};
         filteredData.forEach(item => {
             if (item.fecha) {
@@ -570,7 +637,7 @@
         });
     }
 
-    function updateTable() {
+    function renderTable() {
         const tbody = document.getElementById('table-body');
         tbody.innerHTML = '';
         if (filteredData.length === 0) {
@@ -601,6 +668,10 @@
         });
     }
 
+    function updateTable() {
+        renderTable(); // ya se encarga de mostrar los datos ordenados
+    }
+
     function startAutoRefresh(seconds = 60) {
         if (updateInterval) clearInterval(updateInterval);
         updateInterval = setInterval(() => loadData(false), seconds * 1000);
@@ -613,6 +684,7 @@
     filterFirmado.addEventListener('change', applyFilters);
     filterFechaDesde.addEventListener('change', applyFilters);
     filterFechaHasta.addEventListener('change', applyFilters);
+    filterPoblacion.addEventListener('change', applyFilters);
     resetBtn.addEventListener('click', () => {
         filterResponsable.value = 'todos';
         filterEstado.value = 'todos';
@@ -620,9 +692,11 @@
         filterFirmado.value = 'todos';
         filterFechaDesde.value = '';
         filterFechaHasta.value = '';
+        filterPoblacion.value = 'todos';
         applyFilters();
     });
     refreshBtn.addEventListener('click', () => loadData(true));
+    sortHeader.addEventListener('click', toggleSortDirection);
 
     // INICIO
     loadData(true).then(() => startAutoRefresh(60));
